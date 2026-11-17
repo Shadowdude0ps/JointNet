@@ -1,7 +1,8 @@
 /**
- * /request: anyone can submit a request.
+ * /request: only members WITHOUT the Cleared role can submit a request.
  *
- *  1. A form opens asking for Roblox username, request type, details and anything extra.
+ *  1. A form opens asking for Roblox username, profile link, rank (Garda / Defence Forces / NAS),
+ *     roles requesting and a vouch.
  *     (Their Discord username/ID is taken automatically from their account.)
  *  2. The bot looks the Roblox account up, sets the member's nickname to
  *     "<RobloxUsername> | <RobloxUserId>", and posts the full result in the requests
@@ -39,6 +40,21 @@ const PENDING_BLOCK_MS = 24 * 60 * 60_000; // one open request per person (expir
 const GROUP_CHUNK_CHARS = 3800;            // each groups embed stays under Discord's 4096 limit
 const MAX_GROUP_MESSAGES = 6;
 const ROBLOX_NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const PROFILE_RE = /roblox\.com\/(?:[a-z-]+\/)?users\/(\d+)/i;
+
+const ALREADY_CLEARED_MSG = '✅ You already have the **Cleared** role, so you can\'t submit a request.';
+
+/** The Cleared role: CLEARED_ROLE_ID, or a role named "Cleared" if that is blank. */
+function clearedRoleId(guild) {
+  return process.env.CLEARED_ROLE_ID
+    || guild?.roles.cache.find(r => r.name.toLowerCase() === 'cleared')?.id
+    || null;
+}
+
+function isCleared(member) {
+  const id = clearedRoleId(member?.guild);
+  return Boolean(id && member.roles.cache.has(id));
+}
 
 const cooldowns = new Map();
 
@@ -73,7 +89,7 @@ function pruneStore() {
 
 /** The main embed staff see. `d` holds everything gathered about the request. */
 function buildMainEmbed(d) {
-  const { discordUser, member, rbx, subject, details, extra, nicknameNote, notes } = d;
+  const { discordUser, member, rbx, rank, rolesRequested, vouch, profileLink, nicknameNote, notes } = d;
   const profile = `https://www.roblox.com/users/${rbx.Id}/profile`;
   const created = rbx.created ? new Date(rbx.created).getTime() : null;
   const age = roblox.accountAgeDays(rbx.created);
@@ -129,9 +145,11 @@ function buildMainEmbed(d) {
       value: orDash(clip(rbx.description, 400)),
       inline: false,
     },
-    { name: `📨 Request: ${clip(subject, 200)}`, value: orDash(clip(details, 1000)), inline: false },
+    { name: '🔗 Link to Profile', value: orDash(clip(profileLink, 300)), inline: false },
+    { name: '🎖️ Rank within Garda / Defence Forces / NAS', value: orDash(clip(rank, 300)), inline: false },
+    { name: '📨 Roles Requesting', value: orDash(clip(rolesRequested, 600)), inline: false },
+    { name: '🤝 Vouch', value: orDash(clip(vouch, 600)), inline: false },
   ];
-  if (extra) fields.push({ name: '➕ Additional info', value: clip(extra, 1000), inline: false });
   if (flagged.length) {
     fields.push({
       name: '🚩 Flagged groups',
@@ -146,7 +164,7 @@ function buildMainEmbed(d) {
 
   const embed = new EmbedBuilder()
     .setColor(flagged.length ? COLOR_FLAGGED : COLOR_PENDING)
-    .setTitle(`${flagged.length ? '🚩 ' : ''}New Request: ${clip(subject, 200)}`)
+    .setTitle(`${flagged.length ? '🚩 ' : ''}New Request: ${rbx.Username}`)
     .addFields(fields)
     .setFooter({ text: 'Roblox username is self-reported and not verified' })
     .setTimestamp();
@@ -205,20 +223,28 @@ function openModal(interaction) {
     .setCustomId('request:submit')
     .setTitle('JointNet Request')
     .addComponents(
-      input('roblox',  'Roblox username',      TextInputStyle.Short,     { max: 20,   placeholder: 'e.g. Builderman' }),
-      input('subject', 'What are you requesting?', TextInputStyle.Short, { max: 100,  placeholder: 'A short title for your request' }),
-      input('details', 'Details',              TextInputStyle.Paragraph, { max: 1000, placeholder: 'Explain your request' }),
-      input('extra',   'Anything else? (optional)', TextInputStyle.Paragraph, { required: false, max: 1000 }),
+      input('roblox',  'Roblox Username',   TextInputStyle.Short,     { max: 20,  placeholder: 'e.g. Builderman' }),
+      input('link',    'Link to Profile',   TextInputStyle.Short,     { max: 200, placeholder: 'https://www.roblox.com/users/123456789/profile' }),
+      input('rank',    'Rank within Garda or Defence Forces or NAS', TextInputStyle.Short, { max: 100, placeholder: 'Your current rank' }),
+      input('roles',   'Roles Requesting',  TextInputStyle.Paragraph, { max: 300, placeholder: 'Which roles are you requesting?' }),
+      input('vouch',   'Vouch',             TextInputStyle.Paragraph, { max: 500, placeholder: 'Who is vouching for you?' }),
     );
   return interaction.showModal(modal);
 }
 
 async function handleSubmit(interaction) {
   const reply = content => interaction.editReply({ content });
-  const rawName = interaction.fields.getTextInputValue('roblox').trim();
-  const subject = interaction.fields.getTextInputValue('subject').trim();
-  const details = interaction.fields.getTextInputValue('details').trim();
-  const extra   = (interaction.fields.getTextInputValue('extra') || '').trim();
+
+  // Re-check here too: they might have been cleared while the form was open.
+  if (isCleared(interaction.member)) {
+    return interaction.reply({ content: ALREADY_CLEARED_MSG, flags: MessageFlags.Ephemeral });
+  }
+
+  const rawName        = interaction.fields.getTextInputValue('roblox').trim();
+  const profileLink    = interaction.fields.getTextInputValue('link').trim();
+  const rank           = interaction.fields.getTextInputValue('rank').trim();
+  const rolesRequested = interaction.fields.getTextInputValue('roles').trim();
+  const vouch          = interaction.fields.getTextInputValue('vouch').trim();
 
   if (!ROBLOX_NAME_RE.test(rawName)) {
     return interaction.reply({
@@ -279,6 +305,9 @@ async function handleSubmit(interaction) {
   if (rbx.isBanned) notes.push('🚫 This Roblox account is banned');
   if (friendCount === 0) notes.push('👤 No friends listed');
   if (!groups.length) notes.push('🏛️ Not in any groups');
+  const linkId = profileLink.match(PROFILE_RE)?.[1];
+  if (!linkId) notes.push('🔗 The profile link isn\'t a recognisable Roblox profile link');
+  else if (String(linkId) !== String(rbx.Id)) notes.push(`🔗 The profile link is for Roblox ID \`${linkId}\`, but the username given is ID \`${rbx.Id}\``);
   const other = Object.values(items).find(r => r.robloxId === rbx.Id && r.userId !== interaction.user.id);
   if (other) notes.push(`❗ This Roblox account was already used in a request by <@${other.userId}>`);
 
@@ -295,7 +324,7 @@ async function handleSubmit(interaction) {
   const data = {
     discordUser: interaction.user, member: interaction.member,
     rbx, prevNames, friendCount, followerCount, followingCount, groups, avatarUrl,
-    subject, details, extra, nicknameNote, notes,
+    rank, rolesRequested, vouch, profileLink, nicknameNote, notes,
   };
 
   // Post to the staff channel
@@ -348,8 +377,7 @@ async function grantAccessRoles(guild, record) {
   const lines = [];
   const toGive = []; // { id, why }
 
-  const clearedId = process.env.CLEARED_ROLE_ID
-    || guild.roles.cache.find(r => r.name.toLowerCase() === 'cleared')?.id;
+  const clearedId = clearedRoleId(guild);
   if (clearedId) toGive.push({ id: clearedId, why: 'Cleared' });
   else lines.push('⚠️ No **Cleared** role found. Create one named "Cleared" or set `CLEARED_ROLE_ID`.');
 
@@ -428,10 +456,13 @@ async function finish(interaction, message, accepted, reason) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('request')
-    .setDescription('Submit a request to staff (links your Roblox account)')
+    .setDescription('Request access (only for members without the Cleared role)')
     .setContexts(InteractionContextType.Guild),
 
   async execute(interaction) {
+    if (isCleared(interaction.member)) {
+      return interaction.reply({ content: ALREADY_CLEARED_MSG, flags: MessageFlags.Ephemeral });
+    }
     return openModal(interaction);
   },
 
