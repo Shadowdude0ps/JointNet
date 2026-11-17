@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, InteractionContextType, MessageFlags } = require('discord.js');
-const { isStaff, deny } = require('../utils/permissions');
+const { canRunEvents, deny } = require('../utils/permissions');
 const { getChannel, channelEnvName } = require('../utils/config');
 
 // Add, remove or rename event types here. `channel` is a key from utils/config.js.
@@ -25,7 +25,7 @@ module.exports = {
     .addRoleOption(o => o.setName('ping').setDescription('Role to ping').setRequired(false)),
 
   async execute(interaction) {
-    if (!isStaff(interaction.member)) return deny(interaction);
+    if (!canRunEvents(interaction.member)) return deny(interaction);
 
     const type = TYPES[interaction.options.getString('type')];
     const channel = await getChannel(interaction.client, type.channel);
