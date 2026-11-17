@@ -5,6 +5,7 @@ const CHANNEL_ENV = {
   events:          'EVENTS_CHANNEL_ID',           // /event (Ceremonial, Deployments, Trainings)
   civilDeployment: 'CIVIL_DEPLOYMENT_CHANNEL_ID', // /event type: Civil Deployments
   requests:        'REQUESTS_CHANNEL_ID',         // /request results
+  requestLogs:     'REQUEST_LOGS_CHANNEL_ID',     // log of accepted / denied requests
 };
 
 function channelEnvName(kind) { return CHANNEL_ENV[kind]; }
