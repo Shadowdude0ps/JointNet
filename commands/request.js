@@ -4,10 +4,12 @@
  *  1. A form opens asking for Roblox username, profile link, rank (Garda / Defence Forces / NAS),
  *     roles requesting and a vouch.
  *     (Their Discord username/ID is taken automatically from their account.)
- *  2. The bot looks the Roblox account up, sets the member's nickname to
- *     "<RobloxUsername> | <RobloxUserId>", and posts the full result in the requests
+ *  2. The bot looks the Roblox account up and posts the full result in the requests
  *     channel: Discord + Roblox details, avatar, and ALL of the user's Roblox groups.
+ *     The nickname is NOT changed yet.
  *  3. Staff press Accept / Deny (Deny asks for a reason). The requester gets a DM.
+ *     Accept gives the roles AND sets the nickname "<RobloxUsername> | <RobloxUserId>".
+ *     Deny changes nothing. Either way the decision is written to the log channel.
  */
 const {
   SlashCommandBuilder,
@@ -311,15 +313,9 @@ async function handleSubmit(interaction) {
   const other = Object.values(items).find(r => r.robloxId === rbx.Id && r.userId !== interaction.user.id);
   if (other) notes.push(`This Roblox account was already used in a request by <@${other.userId}>`);
 
-  // Nickname: Roblox username + user ID
+  // The nickname is only set if staff accept the request.
   const nickname = makeNickname(rbx.Username, rbx.Id);
-  let nicknameNote;
-  try {
-    await interaction.member.setNickname(nickname, 'JointNet request: Roblox username');
-    nicknameNote = `Set to \`${nickname}\``;
-  } catch {
-    nicknameNote = `Couldn't set \`${nickname}\` (the bot's role must be above theirs, and it needs Manage Nicknames)`;
-  }
+  const nicknameNote = `Will be set to \`${nickname}\` if accepted`;
 
   const data = {
     discordUser: interaction.user, member: interaction.member,
@@ -351,6 +347,7 @@ async function handleSubmit(interaction) {
     userId: interaction.user.id,
     robloxId: rbx.Id,
     robloxName: rbx.Username,
+    nickname,
     status: 'pending',
     at: Date.now(),
   };
@@ -360,7 +357,7 @@ async function handleSubmit(interaction) {
   return reply(
     `✅ Your request has been sent to staff.\n` +
     `**Roblox:** ${rbx.Username} (\`${rbx.Id}\`)\n` +
-    `**Nickname:** ${nicknameNote}`,
+    `Your nickname will be changed to \`${nickname}\` if your request is accepted.`,
   );
 }
 
@@ -376,6 +373,15 @@ async function grantAccessRoles(guild, record) {
 
   const lines = [];
   const toGive = []; // { id, why }
+
+  // Nickname: Roblox username + user ID (only now that the request is accepted)
+  const nickname = record.nickname || makeNickname(record.robloxName, record.robloxId);
+  try {
+    await member.setNickname(nickname, 'JointNet request accepted');
+    lines.push(`Nickname: set to \`${nickname}\``);
+  } catch {
+    lines.push(`Nickname: couldn't set \`${nickname}\` (my role must be above theirs and I need Manage Nicknames)`);
+  }
 
   const clearedId = clearedRoleId(guild);
   if (clearedId) toGive.push({ id: clearedId, why: 'Cleared' });
@@ -402,6 +408,33 @@ async function grantAccessRoles(guild, record) {
   if (given.length)  lines.unshift(`Roles: ${given.join(', ')}`);
   if (failed.length) lines.push(`Couldn't give: ${failed.join(', ')} (my role must be above them and I need Manage Roles)`);
   return lines;
+}
+
+/** Writes the decision to the log channel (if REQUEST_LOGS_CHANNEL_ID is set). Never throws. */
+async function logDecision(interaction, message, record, accepted, reason, roleLines) {
+  try {
+    const channel = await getChannel(interaction.client, 'requestLogs');
+    if (!channel) return;
+    const fields = [
+      { name: 'Applicant', value: `<@${record.userId}>\n**ID:** \`${record.userId}\``, inline: true },
+      { name: 'Roblox', value: `${escapeMd(record.robloxName)}\n**ID:** \`${record.robloxId}\``, inline: true },
+      { name: 'Decided by', value: `${interaction.user}\n**ID:** \`${interaction.user.id}\``, inline: true },
+    ];
+    if (reason) fields.push({ name: 'Reason', value: clip(reason, 1000), inline: false });
+    if (roleLines.length) fields.push({ name: 'Result', value: clip(roleLines.join('\n'), 1000), inline: false });
+    fields.push({ name: 'Request', value: `[Jump to request](${message.url})`, inline: false });
+
+    await channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(accepted ? COLOR_ACCEPTED : COLOR_DENIED)
+        .setTitle(accepted ? 'Request accepted' : 'Request denied')
+        .addFields(fields)
+        .setTimestamp()],
+      allowedMentions: { parse: [] },
+    });
+  } catch (err) {
+    console.error('[request] could not write to the log channel:', err.message);
+  }
 }
 
 /** Marks a request accepted/denied on the staff message and DMs the requester. */
@@ -431,6 +464,7 @@ async function finish(interaction, message, accepted, reason) {
   if (i >= 0) fields[i] = status; else fields.push(status);
   embed.setFields(fields);
   await message.edit({ embeds: [embed], components: [], allowedMentions: { parse: [] } });
+  await logDecision(interaction, message, record, accepted, reason, roleLines);
 
   // Tell the requester
   let dmed = true;
