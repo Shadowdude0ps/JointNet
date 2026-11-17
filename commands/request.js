@@ -34,7 +34,7 @@ const COLOR_DENIED = 0xED4245;
 const COLOR_GROUPS = 0x5865F2;
 const COLOR_FLAGGED = 0xE67E22; // pending request from a member of a flagged group
 
-const STATUS_FIELD = '📌 Status';
+const STATUS_FIELD = 'Status';
 const COOLDOWN_MS = 30_000;               // between submissions per person
 const PENDING_BLOCK_MS = 24 * 60 * 60_000; // one open request per person (expires after 24h)
 const GROUP_CHUNK_CHARS = 3800;            // each groups embed stays under Discord's 4096 limit
@@ -97,74 +97,74 @@ function buildMainEmbed(d) {
 
   const fields = [
     {
-      name: '👤 Discord',
+      name: 'Discord',
       value: `${discordUser}\n**Username:** ${discordUser.username}\n**ID:** \`${discordUser.id}\``,
       inline: true,
     },
     {
-      name: '🎮 Roblox',
+      name: 'Roblox',
       value: `[${escapeMd(rbx.Username)}](${profile})\n**Display:** ${escapeMd(rbx.DisplayName || rbx.Username)}\n**ID:** \`${rbx.Id}\``,
       inline: true,
     },
     {
-      name: '🚫 Banned',
+      name: 'Banned',
       value: rbx.isBanned ? '**Yes**' : 'No',
       inline: true,
     },
     {
-      name: '📅 Roblox account created',
+      name: 'Roblox account created',
       value: created ? `<t:${unix(created)}:D>\n${age} day${age === 1 ? '' : 's'} old` : 'Unknown',
       inline: true,
     },
     {
-      name: '🕒 Discord account / joined server',
+      name: 'Discord account / joined server',
       value:
         `Created <t:${unix(discordUser.createdTimestamp)}:D>\n` +
         (member?.joinedTimestamp ? `Joined <t:${unix(member.joinedTimestamp)}:D>` : 'Join date unknown'),
       inline: true,
     },
     {
-      name: '🤝 Social',
+      name: 'Social',
       value: `**Friends:** ${fmtNum(d.friendCount)}\n**Followers:** ${fmtNum(d.followerCount)}\n**Following:** ${fmtNum(d.followingCount)}`,
       inline: true,
     },
     {
-      name: '🏛️ Groups',
+      name: 'Groups',
       value: d.groups.length
-        ? `${d.groups.length} (full list below)${flagged.length ? `\n🚩 **${flagged.length} flagged**` : ''}`
+        ? `${d.groups.length} (full list below)${flagged.length ? `\n🔴 **${flagged.length} flagged**` : ''}`
         : 'None',
       inline: true,
     },
     {
-      name: '📛 Previous usernames',
+      name: 'Previous usernames',
       value: d.prevNames.length ? clip(d.prevNames.map(n => escapeMd(n.name)).join(', '), 300) : 'None',
       inline: true,
     },
     {
-      name: '📝 Roblox bio',
+      name: 'Roblox bio',
       value: orDash(clip(rbx.description, 400)),
       inline: false,
     },
-    { name: '🔗 Link to Profile', value: orDash(clip(profileLink, 300)), inline: false },
-    { name: '🎖️ Rank within Garda / Defence Forces / NAS', value: orDash(clip(rank, 300)), inline: false },
-    { name: '📨 Roles Requesting', value: orDash(clip(rolesRequested, 600)), inline: false },
-    { name: '🤝 Vouch', value: orDash(clip(vouch, 600)), inline: false },
+    { name: 'Link to Profile', value: orDash(clip(profileLink, 300)), inline: false },
+    { name: 'Rank within Garda / Defence Forces / NAS', value: orDash(clip(rank, 300)), inline: false },
+    { name: 'Roles Requesting', value: orDash(clip(rolesRequested, 600)), inline: false },
+    { name: 'Vouch', value: orDash(clip(vouch, 600)), inline: false },
   ];
   if (flagged.length) {
     fields.push({
-      name: '🚩 Flagged groups',
+      name: '🔴 Flagged groups',
       value: clip(flagged.map(g =>
         `• [**${escapeMd(g.group.name)}**](https://www.roblox.com/groups/${g.group.id}) (${escapeMd(g.role?.name ?? '?')}): ${escapeMd(g.flag.reason)}`).join('\n'), 1000),
       inline: false,
     });
   }
-  fields.push({ name: '🏷️ Nickname', value: nicknameNote, inline: false });
-  if (notes.length) fields.push({ name: '⚠️ Notes', value: clip(notes.join('\n'), 1000), inline: false });
+  fields.push({ name: 'Nickname', value: nicknameNote, inline: false });
+  if (notes.length) fields.push({ name: 'Notes', value: clip(notes.join('\n'), 1000), inline: false });
   fields.push({ name: STATUS_FIELD, value: 'Pending review', inline: false });
 
   const embed = new EmbedBuilder()
     .setColor(flagged.length ? COLOR_FLAGGED : COLOR_PENDING)
-    .setTitle(`${flagged.length ? '🚩 ' : ''}New Request: ${rbx.Username}`)
+    .setTitle(`${flagged.length ? '🔴 ' : ''}New Request: ${rbx.Username}`)
     .addFields(fields)
     .setFooter({ text: 'Roblox username is self-reported and not verified' })
     .setTimestamp();
@@ -179,7 +179,7 @@ function buildGroupEmbeds(d) {
     (b.role?.rank ?? 0) - (a.role?.rank ?? 0) || a.group.name.localeCompare(b.group.name));
 
   const lines = sorted.map(g =>
-    `${getFlag(g.group.id) ? '🚩' : '•'} [${escapeMd(g.group.name)}](https://www.roblox.com/groups/${g.group.id}) — **${escapeMd(g.role?.name ?? '?')}** (rank ${g.role?.rank ?? '?'})`);
+    `${getFlag(g.group.id) ? '🔴' : '•'} [${escapeMd(g.group.name)}](https://www.roblox.com/groups/${g.group.id}) — **${escapeMd(g.role?.name ?? '?')}** (rank ${g.role?.rank ?? '?'})`);
 
   const chunks = [];
   let current = '';
@@ -195,7 +195,7 @@ function buildGroupEmbeds(d) {
   const shown = chunks.slice(0, MAX_GROUP_MESSAGES);
   const embeds = shown.map((text, i) => new EmbedBuilder()
     .setColor(COLOR_GROUPS)
-    .setTitle(`🏛️ ${d.rbx.Username}'s Roblox Groups (${d.groups.length})${chunks.length > 1 ? ` — part ${i + 1}/${chunks.length}` : ''}`)
+    .setTitle(`${d.rbx.Username}'s Roblox Groups (${d.groups.length})${chunks.length > 1 ? ` — part ${i + 1}/${chunks.length}` : ''}`)
     .setDescription(text));
 
   if (chunks.length > shown.length) {
@@ -225,7 +225,7 @@ function openModal(interaction) {
     .addComponents(
       input('roblox',  'Roblox Username',   TextInputStyle.Short,     { max: 20,  placeholder: 'e.g. Builderman' }),
       input('link',    'Link to Profile',   TextInputStyle.Short,     { max: 200, placeholder: 'https://www.roblox.com/users/123456789/profile' }),
-      input('rank',    'Rank within Garda or Defence Forces or NAS', TextInputStyle.Short, { max: 100, placeholder: 'Your current rank' }),
+            input('rank',    'Rank within Garda or Defence Forces or NAS', TextInputStyle.Short, { max: 100, placeholder: 'Your current rank' }),
       input('roles',   'Roles Requesting',  TextInputStyle.Paragraph, { max: 300, placeholder: 'Which roles are you requesting?' }),
       input('vouch',   'Vouch',             TextInputStyle.Paragraph, { max: 500, placeholder: 'Who is vouching for you?' }),
     );
@@ -302,14 +302,14 @@ async function handleSubmit(interaction) {
   const notes = [];
   const age = roblox.accountAgeDays(rbx.created);
   if (typeof age === 'number' && age < 30) notes.push(`🆕 New Roblox account (${age} day${age === 1 ? '' : 's'} old)`);
-  if (rbx.isBanned) notes.push('🚫 This Roblox account is banned');
-  if (friendCount === 0) notes.push('👤 No friends listed');
-  if (!groups.length) notes.push('🏛️ Not in any groups');
+  if (rbx.isBanned) notes.push('This Roblox account is banned');
+  if (friendCount === 0) notes.push('No friends listed');
+  if (!groups.length) notes.push('Not in any groups');
   const linkId = profileLink.match(PROFILE_RE)?.[1];
-  if (!linkId) notes.push('🔗 The profile link isn\'t a recognisable Roblox profile link');
-  else if (String(linkId) !== String(rbx.Id)) notes.push(`🔗 The profile link is for Roblox ID \`${linkId}\`, but the username given is ID \`${rbx.Id}\``);
+  if (!linkId) notes.push('The profile link isn\'t a recognisable Roblox profile link');
+  else if (String(linkId) !== String(rbx.Id)) notes.push(`The profile link is for Roblox ID \`${linkId}\`, but the username given is ID \`${rbx.Id}\``);
   const other = Object.values(items).find(r => r.robloxId === rbx.Id && r.userId !== interaction.user.id);
-  if (other) notes.push(`❗ This Roblox account was already used in a request by <@${other.userId}>`);
+  if (other) notes.push(`This Roblox account was already used in a request by <@${other.userId}>`);
 
   // Nickname: Roblox username + user ID
   const nickname = makeNickname(rbx.Username, rbx.Id);
@@ -318,7 +318,7 @@ async function handleSubmit(interaction) {
     await interaction.member.setNickname(nickname, 'JointNet request: Roblox username');
     nicknameNote = `Set to \`${nickname}\``;
   } catch {
-    nicknameNote = `⚠️ Couldn't set \`${nickname}\` (the bot's role must be above theirs, and it needs Manage Nicknames)`;
+    nicknameNote = `Couldn't set \`${nickname}\` (the bot's role must be above theirs, and it needs Manage Nicknames)`;
   }
 
   const data = {
@@ -330,7 +330,7 @@ async function handleSubmit(interaction) {
   // Post to the staff channel
   const pingRoleId = process.env.REQUESTS_PING_ROLE_ID;
   const hasFlagged = flaggedIn(groups).length > 0;
-  const content = [pingRoleId && `<@&${pingRoleId}>`, hasFlagged && '🚩 **Member of a flagged group**'].filter(Boolean).join(' ') || undefined;
+  const content = [pingRoleId && `<@&${pingRoleId}>`, hasFlagged && '🔴 **Member of a flagged group**'].filter(Boolean).join(' ') || undefined;
   let sent;
   try {
     sent = await channel.send({
@@ -372,20 +372,20 @@ async function handleSubmit(interaction) {
  */
 async function grantAccessRoles(guild, record) {
   const member = await guild.members.fetch(record.userId).catch(() => null);
-  if (!member) return ['⚠️ The requester is no longer in the server, so no roles were given.'];
+  if (!member) return ['The requester is no longer in the server, so no roles were given.'];
 
   const lines = [];
   const toGive = []; // { id, why }
 
   const clearedId = clearedRoleId(guild);
   if (clearedId) toGive.push({ id: clearedId, why: 'Cleared' });
-  else lines.push('⚠️ No **Cleared** role found. Create one named "Cleared" or set `CLEARED_ROLE_ID`.');
+  else lines.push('No **Cleared** role found. Create one named "Cleared" or set `CLEARED_ROLE_ID`.');
 
   // Groups are checked again now, so binds use the user's current ranks
   const groups = await roblox.getUserGroups(record.robloxId);
   const matched = matchingBinds(groups);
   for (const b of matched) toGive.push({ id: b.roleId, why: b.groupName });
-  if (!matched.length) lines.push('ℹ️ No group binds matched their Roblox groups.');
+  if (!matched.length) lines.push('No group binds matched their Roblox groups.');
 
   const given = [];
   const failed = [];
@@ -399,8 +399,8 @@ async function grantAccessRoles(guild, record) {
       failed.push(name);
     }
   }
-  if (given.length)  lines.unshift(`✅ Roles: ${given.join(', ')}`);
-  if (failed.length) lines.push(`⚠️ Couldn't give: ${failed.join(', ')} (my role must be above them and I need Manage Roles)`);
+  if (given.length)  lines.unshift(`Roles: ${given.join(', ')}`);
+  if (failed.length) lines.push(`Couldn't give: ${failed.join(', ')} (my role must be above them and I need Manage Roles)`);
   return lines;
 }
 
@@ -422,7 +422,7 @@ async function finish(interaction, message, accepted, reason) {
   const fields = embed.data.fields ?? [];
   const status = {
     name: STATUS_FIELD,
-    value: `${accepted ? '✅ Accepted' : '❌ Denied'} by ${interaction.user} <t:${unix(Date.now())}:R>` +
+    value: `${accepted ? 'Accepted' : 'Denied'} by ${interaction.user} <t:${unix(Date.now())}:R>` +
            (reason ? `\n**Reason:** ${clip(reason, 900)}` : '') +
            (roleLines.length ? `\n${roleLines.join('\n')}` : ''),
     inline: false,
