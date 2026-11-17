@@ -8,7 +8,7 @@ let timer = null;
 let turn = 0;
 
 function buildStatuses() {
-  const list = [{ type: ActivityType.Watching, name: 'over JointNet' }];
+  const list = [{ type: ActivityType.Watching, name: 'over National Joint Communications' }];
   const threat = getCurrent();
   if (threat) list.push({ type: ActivityType.Watching, name: `National Threat Level: ${threat.label}` });
   list.push({ type: ActivityType.Listening, name: '/request' });
