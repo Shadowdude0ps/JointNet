@@ -14,9 +14,14 @@ function hasAnyRole(member, envName) {
   return Boolean(member?.roles?.cache?.some(r => ids.includes(r.id)));
 }
 
-/** /event, /schedule, and reviewing requests */
+/** Reviewing requests (Accept / Deny) and /groupflag list */
 function isStaff(member) {
   return isOwnerOrAdmin(member) || hasAnyRole(member, 'STAFF_ROLE_IDS');
+}
+
+/** /event and /schedule */
+function canRunEvents(member) {
+  return isOwnerOrAdmin(member) || hasAnyRole(member, 'EVENT_ROLE_IDS');
 }
 
 /** /threatlevel */
@@ -28,4 +33,4 @@ function deny(interaction, text = 'You don\'t have permission to do that.') {
   return interaction.reply({ content: `🚫 ${text}`, flags: MessageFlags.Ephemeral });
 }
 
-module.exports = { isStaff, canSetThreat, isAdmin: isOwnerOrAdmin, deny };
+module.exports = { isStaff, canRunEvents, canSetThreat, isAdmin: isOwnerOrAdmin, deny };
